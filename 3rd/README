@@ -1,0 +1,21 @@
+3rd Party Libraries Documentation
+======================================================================================
+
+This version of the code requires external libraries to function.  They have not been 
+included in the git repo.
+
+/downloads
+/python
+
+
+jerboa - github.com/vandurme/jerboa
+
+JPype-0.5.4.2
+
+liblinear-1.92
+
+libsvm-3.14  
+
+Rtree-0.7.0
+
+spatialindex-1.7.1
