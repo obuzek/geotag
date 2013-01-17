@@ -1,3 +1,0 @@
-
-class ProbabilisticGraphicalModel:
-    pass
