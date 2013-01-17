@@ -1,6 +1,9 @@
 from __future__ import division
 
-from LocationChangePredictor import HomeRegions, GeoTweetDataset
+import Config
+import GeoTweetDataset
+from Util import md5filehash 
+from GeoTweetDataset.Regions import HomeRegions
 import os, hashlib
 from collections import defaultdict, Counter
 
@@ -22,12 +25,6 @@ class ConsequentialLocationChangePredictor:
                 
         return grams
 
-    def md5filehash(self,json_files):
-        m = hashlib.md5()
-        for f in json_files:
-            m.update(f)
-        return m.hexdigest()
-    
     def convert_to_svm(self,user_list,make_even_training=False):
         
         y = []
@@ -86,17 +83,17 @@ class ConsequentialLocationChangePredictor:
 
     def __init__(self,*json_files):
         # setting up: loading data, defining home regions
+	
+        home_region_out_file = Config.global_out+"/home_regions.%s.pickle"
 
-        home_region_out_file = "home_regions.%s.pickle"
-
-        md5 = self.md5filehash(json_files)
+        md5 = md5filehash(json_files)
         self.md5 = md5
         global_fname = home_region_out_file % md5
         
-        gtd_out_file = "geotweets.%s.pickle"
+        gtd_out_file = Config.exp_out+"/geotweets.%s.pickle"
         gtd_fname = gtd_out_file % md5
         
-        tweets_tknizd_fname = "tweets.%s.tknizd.out" % md5
+        tweets_tknizd_fname = Config.exp_out+"/tweets.%s.tknizd.out" % md5
         tknizd_tweets = [line.lower().strip().split(" ") for line in open(tweets_tknizd_fname)]
         tknizd_tweets_dict = {}
         prev_tweet_id = None
@@ -111,12 +108,19 @@ class ConsequentialLocationChangePredictor:
                 tknizd_tweets_dict[prev_tweet_id] += " ".join(line_arr)
         
         self.gtd = None
-        if os.path.isfile(gtd_fname):
+        oldDataExists = False
+	if os.path.isfile(gtd_fname):
             sys.stdout.write("Loading data from %s...\n" % gtd_fname)
-            self.gtd = pickle.load(open(gtd_fname))
-        else:
+	    try:
+            	self.gtd = pickle.load(open(gtd_fname))
+		oldDataExists=True
+	    except ImportError:
+                sys.stdout.write("ImportError: This pickle doesn't work with the current GeoTweetDataset version.  Reconstructing...\n")
+                sys.stdout.flush()
+		pass
+        if not oldDataExists:
             sys.stdout.write("Loading data from files.\n")
-            self.gtd = GeoTweetDataset.GeoTweetDataset(md5)
+            self.gtd = GeoTweetDataset.GeoTweetDataset(md5, Config.exp_out)
             for fname in json_files:
                 sys.stdout.write("Loading data from %s...\n" % fname)
                 self.gtd.importTweetsFromJSONFiles(fname)

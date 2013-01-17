@@ -1,11 +1,14 @@
-import TweetInfo, UserTweets
+from Tweets import TweetInfo, UserTweets
 from collections import defaultdict
-import Place, User
+from Data import Place, User
+import json
 
 class GeoTweetDataset:
 
-    def __init__(self,md5):
+    def __init__(self,md5,
+                 exp_out):
         self.md5 = md5
+        self.exp_out = exp_out
         
         self.tweets = {}
         self.user_infos = {}
@@ -59,7 +62,7 @@ class GeoTweetDataset:
             self.tweets[tweet_id].addTokenization(tokenization)
 
     def setHomePerUser(self,home_regions,lmbda=15):
-        user_homes_file = "user_homes.%s.out" % self.md5
+        user_homes_file = self.exp_out+"/user_homes.%s.out" % self.md5
 
         user_regions = {}
 
@@ -69,7 +72,7 @@ class GeoTweetDataset:
             sys.stdout.write("Loading data from %s...\n" % user_homes_file)
             loaded_from_file = True
             user_regions = pickle.load(open(user_homes_file))
-
+            
         for user_id,utweets in self.user_tweets_by_user_id.iteritems():
             if loaded_from_file:
                 utweets.refineRegions(lmbda=lmbda,user_regions=user_regions[user_id])
@@ -77,11 +80,10 @@ class GeoTweetDataset:
                 utweets.refineRegions(lmbda=lmbda)
                 user_regions[user_id] = utweets._user_regions
             utweets.defineUserHome(home_regions)
-
+            
         if loaded_from_file is False:
             pickle.dump(user_regions,open(user_homes_file,"w+"))
-        
-
+            
     def segmentUserTweets(self,daytrip_variance_threshold=15):
         # TODO daytrip_variance_threshold isn't being used yet; need to implement this
         
@@ -91,10 +93,11 @@ class GeoTweetDataset:
     def detectUserAwayPeriods(self):
         for user_id,utweets in self.user_tweets_by_user_id.iteritems():
             utweets.detectAwayPeriods()
-
+            
     def annotateBeforeAway(self,stability_thres=7):
         for user_id,utweets in self.user_tweets_by_user_id.iteritems():
             utweets.annotateSegments(stability_thres=stability_thres)
     
     def getTweet(self,tID):
         return tweets[tID]
+    

@@ -1,5 +1,5 @@
 import math
-import Coordinates
+from Regions.Data import Coordinates 
 from collections import namedtuple
 
 class TweetSegment(namedtuple("TweetSegment",["day",

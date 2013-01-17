@@ -1,7 +1,6 @@
 
-__all__ = ["GeoTweetDataset",
-           "HomeRegions",
-           "Loader",
-           "LocationChangePrediction",
-           "TwitterTokenizerWrapper",
-           "UsefulLambdas"]
+__all__ = ["Config",
+	"ConsequentialLocationChangePredictor",
+	"Loader",
+	"TwitterTokenizerWrapper",
+	"UsefulLambdas"]
