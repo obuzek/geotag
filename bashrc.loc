@@ -6,3 +6,4 @@ export LD_LIBRARY_PATH=$GEO_PROJ_LOC/3rd/spatialindex-1.7.1/lib:$LD_LIBRARY_PATH
 export PYTHONPATH=$GEO_PROJ_LOC/3rd/libsvm-3.14/python:$GEO_PROJ_LOC/3rd/liblinear-1.92/python:$GEO_PROJ_LOC/3rd/python:$PYTHONPATH
 
 # also had to make sure that Rtree-0.7.0/setup.cfg library and include variables were correct wrt the spatialindex library
+

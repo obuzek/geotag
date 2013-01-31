@@ -1,7 +1,7 @@
 ##!/usr/bin/env python
 
 import Config
-import os, sys, subprocess
+import os, sys, hashlib, subprocess
 
 #wd="/export/projects/tto8/CommunicantAttributes/data/data_ob"
 #jerboa=wd+"/geotag/3rd/jerboa"
@@ -13,9 +13,8 @@ class TwitterTokenizerWrapper:
     
     def tokenizeFile(self,file,md5):
         JERBOA_ROOT = os.environ["JERBOA_ROOT"]
-        #Config.exp_out+"/tweets.%s.tknizd.out" % md5
 
-       tweets_file = Config.exp_out+"/tweets.%s.tknizd.out" % md5
+        tweets_file = Config.exp_out+"/tweets.%s.tknizd.out" % md5
  
         if os.path.isfile(file):
             Popen("java -cp %s/java/src -DTwitterTokenizer.unicode=proj/tokenize/unicode.csv edu.jhu.jerboa.processing.TwitterTokenizer < %s > %s" %
@@ -27,7 +26,7 @@ class TwitterTokenizerWrapper:
 # java -cp java/src -DTwitterTokenizer.unicode=proj/tokenize/unicode.csv edu.jhu.jerboa.processing.TwitterTokenizer < file
 
 
-def md5filehash(self,json_files):
+def md5filehash(json_files):
     m = hashlib.md5()
     for f in sorted(json_files):
         m.update(f)
