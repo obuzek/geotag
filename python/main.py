@@ -9,8 +9,12 @@ def main():
     parser = argparse.ArgumentParser(description="Run consequential location change predictor system.")
     parser.add_argument("files",
                         type=str,
-                        nargs="+",
-                        help="corpus files, must be a flat file of json tweets")
+                        nargs="*",
+                        help="corpus files, must be a flat file of json tweets or corpus, version")
+    parser.add_argument("-R","--rebar",
+                        action="store_true",
+                        required=False,
+                        help="interpret files argument as corpus, version")
     parser.add_argument("-d","--project-loc",
                         metavar="proj_loc",
                         type=str,
@@ -67,6 +71,21 @@ def main():
     if not os.path.isdir(Config.exp_out):
         raise ValueError("bad path - %s (experimental output location must be a path to a valid directory on the system, check $GEO_PROJ_LOC or -E)" % exp_out)
 
+    if args.rebar:
+        for f in args.files:
+            print f
+        corpus = args.files[0]
+        version = args.files[1]
+        print corpus
+        print version
+        clcp = ConsequentialLocationChangePredictor(corpus=corpus,version=version)
+        f = open(Config.global_out+"clcp.%s.pickle" % datetime.datetime.strftime(datetime.datetime.now(),"%y%m%d.%H%M"),
+                 "w+")
+        f.write(pickle.dumps(clcp))
+        f.close()
+        return clcp
+
+ 
     clcp = ConsequentialLocationChangePredictor(*(args.files))
     f = open(Config.global_out+"clcp.%s.pickle" % datetime.datetime.strftime(datetime.datetime.now(),"%y%m%d.%H%M"),
              "w+")

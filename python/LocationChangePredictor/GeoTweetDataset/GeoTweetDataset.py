@@ -1,7 +1,9 @@
 from Tweets import TweetInfo, UserTweets
 from collections import defaultdict
 from Data import Place, User
-import json
+import json,sys
+
+import rebar2
 
 class GeoTweetDataset:
 
@@ -20,6 +22,26 @@ class GeoTweetDataset:
         self.user_id_by_tweet_id = defaultdict(list)
         self.place_id_by_tweet_id = defaultdict(list)
         self.tweet_id_by_place_id = defaultdict(list)
+
+    def importTweetsFromRebar(self,corpus_name,src_stage,version):
+        corpus = rebar2.corpus.Corpus.get_corpus(corpus_name)
+        #src_ver = corpus.get_stage_versions(src_stage)[-1]
+
+        reader = corpus.make_reader(src_stage)
+        communications = reader.load_communications()
+        num_communications = corpus.get_num_communications()
+        sys.stdout.write('Found %d communications.\n' % (num_communications))
+	
+        #print '\n'.join(out)
+        for communication in communications:
+    	    sys.stdout.write('------------------------------------------------------------------\n')
+            sys.stdout.write(communication.__str__())
+            break
+
+        corpus.close()
+
+    def importTokenizationFromRebar(self,corpus,stage,version):
+        pass    
 
     def importTweetsFromJSONFiles(self,*files):
         for f in files:

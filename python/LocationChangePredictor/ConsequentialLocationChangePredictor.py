@@ -81,52 +81,67 @@ class ConsequentialLocationChangePredictor:
         sys.stdout.write("total stable home: %d\n" % (total_stable_home))
         return y, x
 
-    def __init__(self,*json_files):
+    def __init__(self,corpus=None,version=None,*json_files):
         # setting up: loading data, defining home regions
+
+        useRebar = False
+
+        if corpus is not None and version is not None:
+            # this should be interpreted through rebar
+            useRebar = True
+            md5 = md5filehash([corpus,version])
+            self.md5 = md5
+        else:
+            md5 = md5filehash(json_files)
+            self.md5 = md5
 	
         home_region_out_file = Config.global_out+"/home_regions.%s.pickle"
 
-        md5 = md5filehash(json_files)
-        self.md5 = md5
         global_fname = home_region_out_file % md5
         
         gtd_out_file = Config.exp_out+"/geotweets.%s.pickle"
         gtd_fname = gtd_out_file % md5
         
-        tweets_tknizd_fname = Config.exp_out+"/tweets.%s.tknizd.out" % md5
-        tknizd_tweets = [line.lower().strip().split(" ") for line in open(tweets_tknizd_fname)]
-        tknizd_tweets_dict = {}
-        prev_tweet_id = None
-        for line_arr in tknizd_tweets:
-            tweet_id = line_arr[0]
-            if tweet_id.isdigit():
-                tweet_id_int = int(tweet_id)
-                tknizd_tweet = " ".join(line_arr[1:])
-                prev_tweet_id = tweet_id_int
-                tknizd_tweets_dict[tweet_id_int] = tknizd_tweet
-            else:
-                tknizd_tweets_dict[prev_tweet_id] += " ".join(line_arr)
+        if not useRebar:
+            tweets_tknizd_fname = Config.exp_out+"/tweets.%s.tknizd.out" % md5
+            tknizd_tweets = [line.lower().strip().split(" ") for line in open(tweets_tknizd_fname)]
+            tknizd_tweets_dict = {}
+            prev_tweet_id = None
+            for line_arr in tknizd_tweets:
+                tweet_id = line_arr[0]
+                if tweet_id.isdigit():
+                    tweet_id_int = int(tweet_id)
+                    tknizd_tweet = " ".join(line_arr[1:])
+                    prev_tweet_id = tweet_id_int
+                    tknizd_tweets_dict[tweet_id_int] = tknizd_tweet
+                else:
+                    tknizd_tweets_dict[prev_tweet_id] += " ".join(line_arr)
         
         self.gtd = None
         oldDataExists = False
-	if os.path.isfile(gtd_fname):
+	
+        if os.path.isfile(gtd_fname):
             sys.stdout.write("Loading data from %s...\n" % gtd_fname)
-	    try:
+            try:
             	self.gtd = pickle.load(open(gtd_fname))
-		oldDataExists=True
-	    except ImportError:
+                oldDataExists=True
+            except ImportError:
                 sys.stdout.write("ImportError: This pickle doesn't work with the current GeoTweetDataset version.  Reconstructing...\n")
                 sys.stdout.flush()
-		pass
         if not oldDataExists:
             sys.stdout.write("Loading data from files.\n")
             self.gtd = GeoTweetDataset.GeoTweetDataset(md5, Config.exp_out)
-            for fname in json_files:
-                sys.stdout.write("Loading data from %s...\n" % fname)
-                self.gtd.importTweetsFromJSONFiles(fname)
+            if useRebar:
+                sys.stdout.write("Loading data from rebar corpus %s...\n" % corpus)
+                self.gtd.importTweetsFromRebar(corpus,"tweet_info",version)
+                self.gtd.importTokenizationFromRebar(corpus,"jerboa_tokens",version)
+            else:
+                for fname in json_files:
+                    sys.stdout.write("Loading data from %s...\n" % fname)
+                    self.gtd.importTweetsFromJSONFiles(fname)
+                self.gtd.addTokenizations(tknizd_tweets_dict)
             pickle.dump(self.gtd,open(gtd_fname,"w+"))
         
-        self.gtd.addTokenizations(tknizd_tweets_dict)
         self.tknizd_tweets_dict = tknizd_tweets_dict
 
         self.hr = None

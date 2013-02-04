@@ -1,0 +1,9 @@
+run tokenizer; dumps output into tweets.*.tknizd.out in the cache
+(necessary to run before using flat files)
+./TokenizeJSONFiles.py /export/projects/tto8/TwitterData/twitter-multilingual.v1/english/*.json
+
+run using rebar as basis
+./main.py -R twitter_multilingual_english 1.0
+
+run using flat files as basis
+./main.py /export/projects/tto8/TwitterData/twitter-multilingual.v1/english/*.json -G /home/hltcoe/obuzek/geotag/cache
