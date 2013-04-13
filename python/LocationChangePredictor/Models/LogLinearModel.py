@@ -1,3 +1,6 @@
+from collections import defaultdict
+import Constants
+import sys, math
 
 class LogLinearModel:
     
@@ -38,7 +41,7 @@ class LogLinearModel:
 
         grams = []
 
-        for n in range(NGRAMS):
+        for n in range(Constants.NGRAMS):
             for i,tkn in enumerate(tkns):
                 grams.append(" ".join(tkns[i:i+n+1]))
                 

@@ -17,6 +17,21 @@ class Coordinates(namedtuple("Coord",["latitude",
                 self.longitude,
                 self.latitude)
 
+    def __iadd__(self,coord):
+        return Coordinates(self.latitude+coord.latitude,
+                           self.longitude+coord.longitude)
+
+    def __idiv__(self,num):
+        return Coordinates(self.latitude / num,
+                           self.longitude / num)
+
+    def __mult__(self,num):
+        c = Coordinates(self.latitude * num,self.longitude * num)
+        return c
+
+    def __sub__(self,coord):
+        return self.distanceOnUnitSphere(coord)
+
     def distanceOnUnitSphere(self, coord, unit_multiplier=1.0):
         # code yoinked from elsewhere
         # http://www.johndcook.com/python_longitude_latitude.html

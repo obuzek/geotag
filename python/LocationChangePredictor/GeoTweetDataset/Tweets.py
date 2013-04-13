@@ -6,9 +6,11 @@ from email.utils import parsedate_tz,mktime_tz,formatdate
 from time import struct_time
 import calendar
 import datetime
+from ..Util import bcolors
 
+import re
 import math
-from collections import namedtuple
+from collections import namedtuple, defaultdict, Counter
 
 class TweetInfo:
 
@@ -41,7 +43,7 @@ class TweetInfo:
 
     def __init__(self,d):
         self._data = d
-        self.id = d[u'id']
+        self.id = int(d[u'id'])
         self.place = None
         if d[u'place'] is not None:
             self.place = Place(d[u'place'][u'attributes'],
@@ -68,12 +70,15 @@ class TweetInfo:
         self.STABLE_HOME = None
         self.AWAY = None
         self.AFTER = None
+    
+    def apply_regex(self,regex):
+        return re.sub(regex,bcolors.OKBLUE+r"\1"+bcolors.ENDC,self.tweet)
 
     def compareTimewise(self,ut):
         # did self or ut come first?
         return mktime_tz(self.time) < mktime_tz(ut.time)
 
-    def timeString(self):
+    def dateString(self):
         return datetime.date(*(parsedate_tz(formatdate(self._wktime))[:3]))
 
     def addTokenization(self,tokenization):
@@ -123,6 +128,9 @@ class UserTweets:
         self.user_id = user_id
         self._tweets = {}
     
+    def getTweet(self,tweet_id):
+        return self._tweets[tweet_id]
+
     def addTweet(self,tweet_info):
         self._tweets[tweet_info.id] = tweet_info
 
@@ -131,6 +139,10 @@ class UserTweets:
         if user_regions is None:
             self._user_regions = HomeRegions.RefineRegions(self._tweets,lmbda=lmbda)
         self.region_assmts = self._user_regions.assignments(self._tweets)
+
+    def tweetIDiter(self):
+        for tweet_id in sorted(self._tweets,key=lambda ti:self._tweets[ti].time):
+            yield tweet_id 
 
     def defineUserHome(self,global_regions):
         region_composition = defaultdict(list)

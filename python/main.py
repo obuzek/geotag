@@ -11,6 +11,15 @@ def main():
                         type=str,
                         nargs="*",
                         help="corpus files, must be a flat file of json tweets or corpus, version")
+    parser.add_argument("-r","--regex_testing",
+                        metavar="regex_file",
+                        type=str,
+                        nargs=1,
+                        required=False,
+                        help="annotate the corpus in accordance with a set of regexes")
+    parser.add_argument("-f","--foursquare",
+                        action="store_true",
+                        help="annotate the corpus with a foursquare labeling (and output obtained info to file; not yet used)")                      
     parser.add_argument("-R","--rebar",
                         action="store_true",
                         required=False,
@@ -79,15 +88,21 @@ def main():
         print corpus
         print version
         clcp = ConsequentialLocationChangePredictor(corpus=corpus,version=version)
-        f = open(Config.global_out+"clcp.%s.pickle" % datetime.datetime.strftime(datetime.datetime.now(),"%y%m%d.%H%M"),
+        f = open(Config.global_out+"/clcp.%s.pickle" % datetime.datetime.strftime(datetime.datetime.now(),"%y%m%d.%H%M"),
                  "w+")
         f.write(pickle.dumps(clcp))
         f.close()
         return clcp
 
- 
     clcp = ConsequentialLocationChangePredictor(*(args.files))
-    f = open(Config.global_out+"clcp.%s.pickle" % datetime.datetime.strftime(datetime.datetime.now(),"%y%m%d.%H%M"),
+    clcp.estimate_schedules()
+    # clcp.do_home_regions()
+    if args.regex_testing is not None:
+        for regex in args.regex_testing:
+            clcp.regex_testing(regex)
+    if args.foursquare:
+        clcp.foursquare_labeling()
+    f = open(Config.global_out+"/clcp.%s.pickle" % datetime.datetime.strftime(datetime.datetime.now(),"%y%m%d.%H%M"),
              "w+")
     f.write(pickle.dumps(clcp))
     f.close()
