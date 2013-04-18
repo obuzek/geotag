@@ -51,7 +51,7 @@ def main():
 
     args = parser.parse_args()
 
-    print args
+    # print args
     
     #for i,f in enumerate(args.files):
     #    args.files[i] = os.path.abspath(f)

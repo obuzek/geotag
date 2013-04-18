@@ -32,10 +32,18 @@ class ConsequentialLocationChangePredictor:
 
     def estimate_schedules(self):
         se = ScheduleEstimator.ScheduleEstimator(self.gtd) 
-        se.predict_schedules(1) # 1 for testing; 10 later
-        sys.stdout.flush()
-        se.cluster_schedules(4,iterations=10)
-        sys.stdout.flush()
+        test = True
+        if test:
+            se.predict_schedules(1)
+            sys.stdout.flush()
+            se.cluster_schedules(4,iterations=1)
+            sys.stdout.flush()
+        else:
+            se.predict_schedules(20)
+            sys.stdout.flush()
+            se.cluster_schedules(4,iterations=20)
+            sys.stdout.flush()
+        se.compute_avg_ll_of_data()
 
     def featurize_tweet_info(self,tweet_info):
         ngrams = self.generate_ngrams(tweet_info.tweet)

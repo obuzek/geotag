@@ -1,3 +1,3 @@
 
-for var in dir():
-    print var,"=",vars()[var]
+#for var in dir():
+#    print var,"=",vars()[var]

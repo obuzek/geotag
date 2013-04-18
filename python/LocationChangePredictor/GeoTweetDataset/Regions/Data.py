@@ -1,3 +1,4 @@
+from __future__ import division
 from collections import namedtuple
 import math
 
@@ -20,6 +21,10 @@ class Coordinates(namedtuple("Coord",["latitude",
     def __iadd__(self,coord):
         return Coordinates(self.latitude+coord.latitude,
                            self.longitude+coord.longitude)
+
+    def __itruediv__(self,num):
+        return Coordinates(self.latitude / num,
+                           self.longitude / num)
 
     def __idiv__(self,num):
         return Coordinates(self.latitude / num,

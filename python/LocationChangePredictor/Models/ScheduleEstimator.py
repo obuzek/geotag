@@ -1,5 +1,6 @@
+from __future__ import division
 from collections import defaultdict
-import sys, copy
+import sys, copy, math
 from LocationChangePredictor.GeoTweetDataset.Regions.Data import Coordinates
 import random
 
@@ -13,15 +14,21 @@ class ScheduleEstimator:
         self.home_vec = self._or_vectors(home_vec,home_vec_wkd)
         self.travel_vec = self._generate_canon_sched_vector([(0,23)],["F","Sa","Su","M"])
         local_vec_evening = self._generate_canon_sched_vector([(18,23)],["M","Tu","W","Th","F"])
-        local_vec_wkd = self._generate_canon_sched_vector([(3,23)],["Sa","Su"])
+        local_vec_wkd = self._generate_canon_sched_vector([(15,23)],["Sa","Su"])
         self.local_vec = self._or_vectors(local_vec_evening,local_vec_wkd)
+
+        self.work_vec = self._add_lambda(self.work_vec)
+        self.home_vec = self._add_lambda(self.home_vec)
+        self.local_vec = self._add_lambda(self.local_vec)
+        self.travel_vec = self._add_lambda(self.travel_vec)
 
         priors = { "home" : .3,
                   "work" : .3,
                   "local" : .2,
                   "travel" : .2 }
 
-        self.renormalize(priors)
+        timesteps = range(7*24)
+        self.renormalize(timesteps,priors)
 
         print "CANONICAL"
         print "---------"
@@ -38,7 +45,14 @@ class ScheduleEstimator:
 
         self.gtd = gtd # this ScheduleEstimator is going to collect data for a specific dataset
 
-    def renormalize(self,priors=defaultdict(lambda:.25),home=None,work=None,local=None,travel=None):
+    def _add_lambda(self,vec,lmbda=0.1):
+        # res = range(len(vec))
+        for pos in range(len(vec)):
+            vec[pos] = vec[pos] + lmbda
+        return vec
+
+    def renormalize(self,timesteps,priors=defaultdict(lambda:.25),home=None,work=None,local=None,travel=None,lmbda=0.1):
+        # timesteps tells you which timesteps to normalize
         if home is None:
             home = self.home_vec
         if work is None:
@@ -48,39 +62,53 @@ class ScheduleEstimator:
         if travel is None:
             travel = self.travel_vec
 
-        for i in range(0,24*7):
+        for i in timesteps:
+
+            home[i] += lmbda
+            work[i] += lmbda
+            travel[i] += lmbda
+            local[i] += lmbda
 
             total = 0.
-            if home[i] == 1:
-                total += priors["home"]
-            if work[i] == 1:
-                total += priors["work"]
-            if travel[i] == 1:
-                total += priors["travel"]
-            if local[i] == 1:
-                total += priors["local"]
+            if home[i] > 0:
+                home[i] *= priors["home"]
+                total += home[i]
+            if work[i] > 0:
+                work[i] *= priors["work"]
+                total += work[i]
+            if travel[i] > 0:
+                travel[i] *= priors["travel"]
+                total += travel[i]
+            if local[i] > 0:
+                local[i] *= priors["local"]
+                total += local[i]
 
             if total > 0:
-                home[i] =   home[i] * priors["home"] / total
-                work[i] =   work[i] * priors["work"] / total
-                local[i] =  local[i] * priors["local"] / total
-                travel[i] = travel[i] * priors["travel"] / total
+                home[i] =   home[i]  / total
+                work[i] =   work[i]  / total
+                local[i] =  local[i]  / total
+                travel[i] = travel[i]  / total
 
     def _print_vector(self,vec):
         for t in range(0,24):
             for d in range(0,7):
-                sys.stdout.write(str(vec[d*24+t])+"\t")
+                sys.stdout.write("%0.3f" % (vec[d*24+t])+"\t")
             sys.stdout.write("\n")
 
-    def _add_vecs(self,vecs,weights=None):
+    def _add_vecs(self,vecs,timesteps,weights=None):
         if weights is None:
-            weights = [1]*len(vecs)
+            weights = [1 / len(vecs)]*len(vecs)
         if len(weights) != len(vecs):
             pass # maybe should throw an incorrect length exception, or something
 
         vec = [0]*len(vecs[0])
-        for i in range(len(vecs[0])):
-            vec[i] = sum([vecs[num][i]*weights[num] for num in range(len(vecs))])
+        for num in range(len(vecs)):
+#             print vecs[num][:10]
+            for i in range(len(vecs[0])):
+                if i in timesteps:
+                    vec[i] += vecs[num][i]*weights[num]
+                else:
+                    vec[i] += vecs[num][i]
 
         return vec
 
@@ -111,7 +139,6 @@ class ScheduleEstimator:
                 if start_time < end_time:
                     for i in range(start_time,end_time+1):
                         sched_vector[offset+i] = 1
-
         return sched_vector
 
     def predict_schedules(self,iterations):
@@ -147,8 +174,24 @@ class ScheduleEstimator:
             self.curr_local_vec[user_id] = copy.deepcopy(self.local_vec)
             self.curr_travel_vec[user_id] = copy.deepcopy(self.travel_vec)
 
-    def where_am_I(self,place_prob,user_id,time):
-        return max(place_prob,key=place_prob.get)
+    def where_am_I(self,place_prob,user_id,time,key=None):
+        if key is None:
+            return max(place_prob,key=lambda k:place_prob.get(k)[time])
+        else:
+            return max(place_prob,key=key)
+
+    def test_probability_dist(self,*args,**kwargs):
+#            print kwargs.get("timesteps")
+            for i in kwargs.get("timesteps"):
+                s = 0
+                for vec in args:
+#                    print vec
+                    s += vec[i]
+                if math.fabs(s - 1.0) > 0.0001:
+                    print "ZOMG!" , i, s
+                    for vec in args:
+                        print vec
+                    sys.exit(-1)
 
     def compute_schedules(self):
         # based on current beliefs about where a person will be at a given time,
@@ -161,6 +204,8 @@ class ScheduleEstimator:
             local_vec = [0]*7*24
             travel_vec = [0]*7*24
 
+            timesteps_for_normalizing = set()
+
             for tweet_id in ut.tweetIDiter():
                 tweet_info = ut.getTweet(tweet_id)
 
@@ -169,6 +214,7 @@ class ScheduleEstimator:
                                  "w":self.curr_work_vec[user_id],
                                  "l":self.curr_local_vec[user_id],
                                  "t":self.curr_travel_vec[user_id]}
+
                 where_at_t = self.where_am_I(place_prob,user_id,t)
 
                 if where_at_t == "h":
@@ -179,19 +225,45 @@ class ScheduleEstimator:
                     local_vec[t] += 1
                 if where_at_t == "t":
                     travel_vec[t] += 1
+
+                timesteps_for_normalizing.add(t)
                 
-            self.renormalize(home=home_vec,
+            self.renormalize(timesteps_for_normalizing,
+                           home=home_vec,
                            work=work_vec,
                            local=local_vec,
                            travel=travel_vec)
+            # after this point there should be no problems with the prob dist
+#             print "after normalizing:"
+            self.test_probability_dist(home_vec,work_vec,local_vec,travel_vec,timesteps=timesteps_for_normalizing)
+
             # update beliefs about where a person will be at a given time        
-            
+#             print "Before adding:"
+            self.test_probability_dist(self.curr_home_vec[user_id],
+                                      self.curr_work_vec[user_id],
+                                      self.curr_local_vec[user_id],
+                                      self.curr_travel_vec[user_id],
+                                      timesteps=range(7*24))
+#             print self.curr_home_vec[user_id][:10]
+#             print self.curr_work_vec[user_id][:10]
+#             print self.curr_local_vec[user_id][:10]
+#             print self.curr_travel_vec[user_id][:10]
+
+           
             weights = [0.1,0.9]
-            self.curr_home_vec[user_id] = self._add_vecs([home_vec,self.curr_home_vec[user_id]],weights=weights)
-            self.curr_work_vec[user_id] = self._add_vecs([work_vec,self.curr_work_vec[user_id]],weights=weights)
-            self.curr_local_vec[user_id] = self._add_vecs([local_vec,self.curr_local_vec[user_id]],weights=weights)
-            self.curr_travel_vec[user_id] = self._add_vecs([travel_vec,self.curr_home_vec[user_id]],weights=weights)
+            self.curr_home_vec[user_id] = self._add_vecs([home_vec,self.curr_home_vec[user_id]],timesteps_for_normalizing,weights=weights)
+            self.curr_work_vec[user_id] = self._add_vecs([work_vec,self.curr_work_vec[user_id]],timesteps_for_normalizing,weights=weights)
+            self.curr_local_vec[user_id] = self._add_vecs([local_vec,self.curr_local_vec[user_id]],timesteps_for_normalizing,weights=weights)
+            self.curr_travel_vec[user_id] = self._add_vecs([travel_vec,self.curr_travel_vec[user_id]],timesteps_for_normalizing,weights=weights)
              
+#             print "after adding:"
+#             print timesteps_for_normalizing
+            self.test_probability_dist(self.curr_home_vec[user_id],
+                                      self.curr_work_vec[user_id],
+                                      self.curr_local_vec[user_id],
+                                      self.curr_travel_vec[user_id],
+                                      timesteps=range(7*24))
+
 
     def compute_location_types(self):
         # based on the average across all the times we predict a person is in a place,
@@ -248,6 +320,8 @@ class ScheduleEstimator:
                 avg_local /= total_local
             if total_travel > 0:
                 avg_travel /= total_travel
+
+            timesteps = set()
             
             for tweet_id in ut.tweetIDiter():
                 tweet_info = ut.getTweet(tweet_id)
@@ -257,7 +331,7 @@ class ScheduleEstimator:
                      "t":tweet_info.geo-avg_travel}
                 t = tweet_info.weekday*24+tweet_info.time[3] 
 
-                where_at_t = self.where_am_I(place_prob,user_id,t)
+                where_at_t = self.where_am_I(place_prob,user_id,t,key=place_prob.get)
 
                 if where_at_t == "h":
                     home_vec[t] += 1
@@ -267,22 +341,21 @@ class ScheduleEstimator:
                     local_vec[t] += 1
                 if where_at_t == "t":
                     travel_vec[t] += 1
+
+                timesteps.add(t)
                 
-            self.renormalize(home=home_vec,
+            self.renormalize(timesteps,
+                           home=home_vec,
                            work=work_vec,
                            local=local_vec,
                            travel=travel_vec)
             # update beliefs about where a person will be at a given time        
             
             weights = [0.1,0.9]
-            self.curr_home_vec[user_id] = self._add_vecs([home_vec,
-                                                                            self.curr_home_vec[user_id]],weights)
-            self.curr_work_vec[user_id] = self._add_vecs([work_vec,
-                                                                            self.curr_work_vec[user_id]],weights)
-            self.curr_local_vec[user_id] = self._add_vecs([local_vec,
-                                                                            self.curr_local_vec[user_id]],weights)
-            self.curr_travel_vec[user_id] = self._add_vecs([travel_vec,
-                                                                            self.curr_home_vec[user_id]],weights)
+            self.curr_home_vec[user_id] = self._add_vecs([home_vec,self.curr_home_vec[user_id]],timesteps,weights)
+            self.curr_work_vec[user_id] = self._add_vecs([work_vec,self.curr_work_vec[user_id]],timesteps,weights)
+            self.curr_local_vec[user_id] = self._add_vecs([local_vec,self.curr_local_vec[user_id]],timesteps,weights)
+            self.curr_travel_vec[user_id] = self._add_vecs([travel_vec,self.curr_travel_vec[user_id]],timesteps,weights)
              
     def cluster_schedules(self,k,iterations=100):
         # k-means, with schedules! 
@@ -312,22 +385,26 @@ class ScheduleEstimator:
             self._print_vector(self.travel_vec_mean[k])
 
     def compute_cluster_means(self):
-        print self.cluster_assignments
-        for user,cluster in self.cluster_assignments:
+        #print self.cluster_assignments
+        self.num_users_in_cluster=defaultdict(int)
+        for user,cluster in self.cluster_assignments.iteritems():
             self.num_users_in_cluster[cluster] += 1
-        print self.num_users_in_cluster
+        #print self.num_users_in_cluster
         for k in range(self.num_clusters):
             in_cluster = self.num_users_in_cluster[k]
+            if in_cluster == 0:
+                continue
             wgt_vec = [1./in_cluster]*in_cluster
-            self.home_vec_mean[k] = self._add_vecs([vec for user,vec in self.curr_home_vec.iteritems() if self.cluster_assignment[user] == k],weights=wgt_vec)
-            self.work_vec_mean[k] = self._add_vecs([vec for user,vec in self.curr_work_vec.iteritems() if self.cluster_assignment[user] == k],weights=wgt_vec)
-            self.local_vec_mean[k] = self._add_vecs([vec for user,vec in self.curr_work_vec.iteritems() if self.cluster_assignment[user] == k],weights=wgt_vec)
-            self.travel_vec_mean[k] = self._add_vecs([vec for user,vec in self.curr_work_vec.iteritems() if self.cluster_assignment[user] == k],weights=wgt_vec)
+            timesteps = range(7*24)
+            self.home_vec_mean[k] = self._add_vecs([vec for user,vec in self.curr_home_vec.iteritems() if self.cluster_assignments[user] == k],timesteps=timesteps,weights=wgt_vec)
+            self.work_vec_mean[k] = self._add_vecs([vec for user,vec in self.curr_work_vec.iteritems() if self.cluster_assignments[user] == k],timesteps=timesteps,weights=wgt_vec)
+            self.local_vec_mean[k] = self._add_vecs([vec for user,vec in self.curr_local_vec.iteritems() if self.cluster_assignments[user] == k],timesteps=timesteps,weights=wgt_vec)
+            self.travel_vec_mean[k] = self._add_vecs([vec for user,vec in self.curr_travel_vec.iteritems() if self.cluster_assignments[user] == k],timesteps=timesteps,weights=wgt_vec)
 
-        print self.home_vec_means
-        print self.work_vec_means
-        print self.local_vec_means
-        print self.travel_vec_means
+        #print self.home_vec_mean
+        #print self.work_vec_mean
+        #print self.local_vec_mean
+        #print self.travel_vec_mean
 
     def KL(self,dist1,dist2):
         # when we're computing the divergence, we're computing 
@@ -357,6 +434,84 @@ class ScheduleEstimator:
                 cluster_div[k] = self.JS(curr_user_dist,curr_cluster_dist)
 
             self.cluster_assignments[user_id] = min(cluster_div,key=cluster_div.get)
+
+    def compute_avg_ll_of_data(self):
+
+        n = 0
+        total_ll = 0.0
+        total_user_sched_ll = 0.0
+        total_user_cluster_ll = 0.0
+        total_canonical_ll = 0.0
+
+        canonical_dist = { "h": self.home_vec,
+                           "w": self.work_vec,
+                           "l": self.local_vec,
+                           "t": self.travel_vec }
+        
+        for user_id in self.gtd.getUsers():
+            n += 1
+
+            # compute log-likelihood according 
+            curr_user_dist = {"h":self.curr_home_vec[user_id],
+                              "w":self.curr_work_vec[user_id],
+                              "l":self.curr_local_vec[user_id],
+                              "t":self.curr_travel_vec[user_id]}
+            ll = self.compute_ll_of_mle(curr_user_dist,user_id)
+            total_user_sched_ll += ll
+
+            # compute log-likelihood according to the cluster mean
+            cluster = self.cluster_assignments[user_id]
+            cluster_dist = { "h": self.home_vec_mean[cluster],
+                           "w": self.work_vec_mean[cluster],
+                           "l": self.local_vec_mean[cluster],
+                           "t": self.travel_vec_mean[cluster] }
+            ll = self.compute_ll_of_mle(cluster_dist,user_id)
+            total_user_cluster_ll += ll
+
+            # compute log-likelihood according to the canonical vectors
+            ll = self.compute_ll_of_mle(canonical_dist,user_id)
+            total_canonical_ll += ll
+
+        total_ll += total_user_sched_ll + total_user_cluster_ll + total_canonical_ll
+        total_ll /= n*3
+
+        total_user_sched_ll /= n
+        total_user_cluster_ll /= n
+        total_canonical_ll /= n
+
+        sys.stdout.write("="*80)
+        sys.stdout.write("Avg Log Likelihood, overall: %0.3f\n" % total_ll)
+        sys.stdout.write("User Sched Log Likelihood: %0.3f\n" % total_user_sched_ll)
+        sys.stdout.write("User Cluster Log Likelihood: %0.3f\n" % total_user_cluster_ll)
+        sys.stdout.write("Canonical Log Likelihood: %0.3f\n" % total_canonical_ll)
+
+    def compute_mle(self,dist,user_id):
+        ut = self.gtd.getUserTweetsByUserID(user_id)
+
+        mle = defaultdict(list)
+        for tweet_id in ut.tweetIDiter():
+            tweet_info = ut.getTweet(tweet_id)
+           
+            t = tweet_info.weekday*24+tweet_info.time[3]  
+
+            where_at_t = self.where_am_I(dist,user_id,t)
+
+            mle[t].append(where_at_t)
+
+        return mle
+
+    def compute_ll_of_mle(self,dist,user_id):
+        # determine a user's most likely location type at a given time
+        # compute the log-likelihood of a user's tweets based on the most likely location assignment
+        
+        mle = self.compute_mle(dist,user_id)
+        
+        ll = 0.0
+        for t in mle:
+            for loc in mle[t]:
+                ll += math.log(dist[loc][t])
+
+        return ll
 
 if __name__ == "__main__":
     ScheduleEstimator()
